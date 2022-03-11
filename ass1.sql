@@ -4,52 +4,106 @@
 -- students.id references people.id
 -- program_enrolments.student references students.id
 
+-- eliminate (student, program) pair duplicates
 create or replace view distinctprograms(student) as
 	select student from program_enrolments
 	group by (student, program)
 	having student in (select s.id from students as s)
 ;
 
+-- group students to find number of distinct programs > 4
 create or replace view nprograms(student, cnt) as
 	select student, count(*) from distinctprograms
 	group by student
 	having count(*) > 4
 ;
 
+-- link to unswid and name
 create or replace view Q1(unswid, name) as
 	select p.unswid, p.name from people as p
 	where p.id in (select np.student from nprograms as np)
 ;
 
 -- Q2
--- 'Course Tutor' in staff_roles.name
--- course_staff.course references courses.id
+-- 'Course Tutor' in staff_roles.names
 -- course_staff.role references staff_roles.id
 -- course_staff.staff references staff.id
 -- staff.id references people.id
 
+-- find all tutor role ids
 create or replace view tutor_ids(tutor_id) as
 	select id from staff_roles
 	where name = 'Course Tutor';
 ;
 
+-- find all tutors with count
 create or replace view course_tutors(staff, cnt) as
 	select staff, count(*) from course_staff
 	where role in (select * from tutor_ids)
 	group by staff
 ;
 	
-select staff from 
-
-create or replace view Q2(unswid, name, course_cnt) as
-	select
+-- find all tutors with max count
+create or replace view max_tutors(staff, cnt) as
+	select staff, cnt from course_tutors
+	where cnt = (select max(cnt) from course_tutors)
 ;
 
+-- link unswid, name and cnt
+create or replace view Q2(unswid, name, course_cnt) as
+	select p.unswid, p.name, mt.cnt from people as p
+	inner join max_tutors as mt on p.id = mt.staff
+;
 
 -- Q3
-create or replace view Q3(unswid, name)
-as
---... SQL statements, possibly using other views/functions defined by you ...
+-- 'intl' in students.stype
+-- 'School of Law' in orgunits.name
+-- subjects.offeredby references orgunits.id
+-- course_enrolments.student references students.id
+-- course_enrolments.course references courses.id
+-- courses.subject references subjects.id  
+
+-- find orgunit ids for School of Law
+create or replace view law_ids(id) as
+	select id from orgunits
+	where name = 'School of Law'
+;
+
+-- find subjects offered by School of Law
+create or replace view law_subjects(id) as 
+	select s.id from subjects as s
+	where s.offeredby in (select id from law_ids)
+;
+
+-- find course ids that are law subjects
+create or replace view law_courses(id) as
+	select c.id from courses as c
+      	where c.subject in (select id from law_subjects)
+;	
+
+-- find all enrolments in law courses
+create or replace view law_enrolments(student) as
+	select ce.student from course_enrolments as ce
+	where ce.course in (select id from law_courses)
+	and ce.mark > 85
+;
+
+-- find international students ids
+create or replace view intl_students(id) as
+	select s.id from students as s
+	where s.stype = 'intl'
+;
+
+-- link international students and law courses
+create or replace view law_enrolments_intl(student) as
+	select distinct le.student from law_enrolments as le
+	where le.student in (select id from intl_students)
+;
+
+-- link with unswid, name
+create or replace view Q3(unswid, name) as
+	select p.unswid, p.name from people as p
+	where p.id in (select student from law_enrolments_intl)
 ;
 
 
