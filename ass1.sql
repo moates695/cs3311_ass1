@@ -22,9 +22,27 @@ create or replace view Q1(unswid, name) as
 ;
 
 -- Q2
-create or replace view Q2(unswid, name, course_cnt)
-as
---... SQL statements, possibly using other views/functions defined by you ...
+-- 'Course Tutor' in staff_roles.name
+-- course_staff.course references courses.id
+-- course_staff.role references staff_roles.id
+-- course_staff.staff references staff.id
+-- staff.id references people.id
+
+create or replace view tutor_ids(tutor_id) as
+	select id from staff_roles
+	where name = 'Course Tutor';
+;
+
+create or replace view course_tutors(staff, cnt) as
+	select staff, count(*) from course_staff
+	where role in (select * from tutor_ids)
+	group by staff
+;
+	
+select staff from 
+
+create or replace view Q2(unswid, name, course_cnt) as
+	select
 ;
 
 
