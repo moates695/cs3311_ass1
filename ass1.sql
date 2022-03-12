@@ -113,6 +113,18 @@ create or replace view Q3(unswid, name) as
 -- course_enrolments.course regerences courses.id
 -- course enrolments.student references students.id 
 
+-- find ids and terms for COMP9020
+create or replace view subject_COMP9020(id) as
+	select s.id from subjects as s
+	where s.code = 'COMP9020'
+;
+
+-- find ids and terms fro COMP9331
+create or replace view subject_COMP9331(id) as
+	select s.id from subjects as s
+	where s.code = 'COMP9331'
+;
+
 -- find course ids and terms for COMP9020
 create or replace view course_COMP9020(id, term) as
 	select c.id, c.term from courses as c
@@ -156,10 +168,20 @@ create or replace view Q4(unswid, name) as
 	where p.id in (select id from local_enrolments_both) 
 ;
 
+-- Q5
+-- 'COMP3311' in subjects.code
+-- courses.subject references subject.id
+-- courses.term references terms.id
+-- course_enrolments.course references courses.id
+
 -- Q5a
-create or replace view Q5a(term, min_fail_rate)
-as
---... SQL statements, possibly using other views/functions defined by you ...
+
+-- find subject ids for COMP3311
+
+create or replace view 
+
+create or replace view Q5a(term, min_fail_rate) as
+	select 
 ;
 
 
