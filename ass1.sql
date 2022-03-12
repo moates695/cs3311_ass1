@@ -279,19 +279,10 @@ $$ language sql;
 
 
 -- Q7
-
-create or replace view time_code(year, session, code) as
-	select t.year, t.session, s.code from terms as t
-	inner join courses as c on t.id = c.term
-	inner join subjects as s on c.subject = s.id
-	where s.career = 'PG'
-	and s.code like 'COMP%'
-;
-
 create or replace function 
 	Q7(year integer, session text) returns table (code text)
 as $$
-	select s.code from terms as t
+	select distinct s.code from terms as t
 	inner join courses as c on t.id = c.term
 	inner join subjects as s on c.subject = s.id
 	where s.career = 'PG'
@@ -300,12 +291,106 @@ as $$
 	and t.session = $2
 $$ language sql;
 
-
 -- Q8
+
+select c.term, ce.mark, ce.grade, s.uoc from course_enrolments as ce
+inner join people as p on ce.student = p.id
+inner join courses as c on ce.course = c.id
+inner join subjects as s on c.subject = s.id
+where p.id = 5555555;
+
+create or replace function
+	q8_data(zid integer) returns table (term integer, mark integer, grade gradeType, uoc integer)
+as $$
+	select c.term, ce.mark, ce.grade, s.uoc from course_enrolments as ce
+	inner join people as p on ce.student = p.id
+	inner join courses as c on ce.course = c.id
+	inner join subjects as s on c.subject = s.id
+	where p.unswid = $1
+	order by c.term
+$$ language sql;
+
 create or replace function
 	Q8(zid integer) returns setof TermTranscriptRecord
 as $$
-	select null
+declare
+	rec record;
+	result TermTranscriptRecord;
+	t integer := 0;
+	t_cnt integer := 0;
+	t_wsum integer := 0;
+	t_pass_uoc integer := 0;
+	t_all_uoc integer := 0;
+	wsum integer := 0;
+	pass_uoc integer := 0;
+	all_uoc integer := 0;
+begin
+	for rec in
+		select * from q8_data($1) 	
+	loop
+		if (t_cnt > 0 and t <> rec.term) then
+			wsum := wsum + t_wsum;
+			pass_uoc := pass_uoc + t_pass_uoc;
+			all_uoc := all_uoc + t_all_uoc;
+
+			result.term := cast(termName(t) as char(4));
+			case
+				when t_all_uoc = 0 then result.termwam := null;
+				when t_wsum = 0 then result.termwam := null;
+				else result.termwam := (t_wsum::float/t_all_uoc)::numeric(2,0);
+			end case;
+			case
+				when t_pass_uoc = 0 then result.termuocpassed := null;
+				else result.termuocpassed := t_pass_uoc;
+			end case;
+			return next result;
+
+			t_wsum := 0;
+			t_pass_uoc := 0;
+			t_all_uoc := 0;
+			t_cnt := 0;
+		end if;
+		if (rec.grade in ('SY','PT','PC','PS','CR','DN','HD','A','B','C','XE','T','PE','RC','RS')) then
+			t_pass_uoc := t_pass_uoc + rec.uoc;
+		end if;
+		if (rec.mark is not null and rec.grade is not null) then
+			t_wsum := t_wsum + (rec.mark * rec.uoc);
+			t_all_uoc := t_all_uoc + rec.uoc;
+		end if;
+		t_cnt := t_cnt + 1;
+		t := rec.term;
+	end loop;
+	if (t_cnt > 0) then
+		wsum := wsum + t_wsum;
+		pass_uoc := pass_uoc + t_pass_uoc;
+		all_uoc := all_uoc + t_all_uoc;
+
+		result.term := cast(termName(rec.term) as char(4));
+		case
+			when t_all_uoc = 0 then result.termwam := null;
+			when t_wsum = 0 then result.termwam := null;
+			else result.termwam := (t_wsum::float/t_all_uoc)::numeric(2,0);
+		end case;
+		case
+			when t_pass_uoc = 0 then result.termuocpassed := null;
+			else result.termuocpassed := t_pass_uoc;
+		end case;
+		return next result;
+
+		result.term := 'OVAL';
+		case
+			when all_uoc = 0 then result.termwam := null;
+			when wsum = 0 then result.termwam := null;
+			else result.termwam := (wsum::float/all_uoc)::numeric(2,0);
+		end case;
+		case
+			when pass_uoc = 0 then result.termuocpassed := null;
+			else result.termuocpassed := pass_uoc;
+		end case;
+		return next result;
+	end if;
+	return;
+end;
 $$ language plpgsql;
 
 
