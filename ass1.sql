@@ -177,18 +177,80 @@ create or replace view Q4(unswid, name) as
 -- Q5a
 
 -- find subject ids for COMP3311
-
-create or replace view 
-
-create or replace view Q5a(term, min_fail_rate) as
-	select 
+create or replace view subject_COMP3311(id) as
+	select s.id from subjects as s
+	where code = 'COMP3311'
 ;
 
+-- find all courses and valid marks
+create or replace view course_all_marks(course, mark) as
+	select ce.course, ce.mark from course_enrolments as ce
+	where ce.mark is not null
+;
 
--- Q5b
-create or replace view Q5b(term, min_fail_rate)
-as
---... SQL statements, possibly using other views/functions defined by you ...
+-- find all courses and fail marks
+create or replace view course_fail_marks(course, mark) as
+	select ce.course, ce.mark from course_enrolments as ce
+	where ce.mark is not null
+	and ce.mark < 50
+;
+
+-- find all courses and count of valid marks
+create or replace view course_all_cnt(course, cnt) as
+	select c.course, count(*) from course_all_marks as c
+	group by c.course
+;
+
+-- find all courses and count of fail marks
+create or replace view course_fail_cnt(course, cnt) as
+	select c.course, count(*) from course_fail_marks as c
+	group by c.course
+;
+
+-- find all course fail rates
+create or replace view course_rate(course, rate) as
+	select cf.course,
+	cast(cf.cnt::float/(select ca.cnt from course_all_cnt as ca where cf.course = ca.course) as decimal(5,4))
+	from course_fail_cnt as cf
+;
+
+-- join terms with fail rate 
+create or replace view term_rate(term, rate) as
+	select c.term, cr.rate from courses as c
+	inner join course_rate as cr on c.id = cr.course
+	inner join subject_COMP3311 as s on c.subject = s.id
+;
+
+-- link name and rate
+create or replace view name_rate(name, rate, year) as
+	select t.name, tr.rate, t.year from terms as t
+	inner join term_rate as tr on t.id = tr.term
+;
+
+-- filter within time period
+create or replace view name_rate_a(name, rate) as
+	select nr.name, nr.rate from name_rate as nr
+	where nr.year >= 2009
+	and nr.year <= 2012
+;
+
+-- return minimum values
+create or replace view Q5a(term, min_fail_rate) as
+	select n.name, n.rate from name_rate_a as n
+	where n.rate = (select min(rate) from name_rate_a)	
+;
+
+-- filter within time period
+create or replace view name_rate_b(name, rate) as
+	select nr.name, nr.rate from name_rate as nr
+	where nr.year >= 2016
+	and nr.year <= 2019
+;
+
+-- return minimum values
+create or replace view Q5b(term, min_fail_rate) as
+	select n.name, n.rate from name_rate_b as n
+	where n.rate = (select min(rate) from name_rate_b)
 ;
 
 
