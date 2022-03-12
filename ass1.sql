@@ -279,10 +279,25 @@ $$ language sql;
 
 
 -- Q7
+
+create or replace view time_code(year, session, code) as
+	select t.year, t.session, s.code from terms as t
+	inner join courses as c on t.id = c.term
+	inner join subjects as s on c.subject = s.id
+	where s.career = 'PG'
+	and s.code like 'COMP%'
+;
+
 create or replace function 
 	Q7(year integer, session text) returns table (code text)
 as $$
---... SQL statements, possibly using other views/functions defined by you ...
+	select s.code from terms as t
+	inner join courses as c on t.id = c.term
+	inner join subjects as s on c.subject = s.id
+	where s.career = 'PG'
+	and s.code like 'COMP%'
+	and t.year = $1
+	and t.session = $2
 $$ language sql;
 
 
@@ -290,7 +305,7 @@ $$ language sql;
 create or replace function
 	Q8(zid integer) returns setof TermTranscriptRecord
 as $$
---... SQL statements, possibly using other views/functions defined by you ...
+	select null
 $$ language plpgsql;
 
 
@@ -298,7 +313,7 @@ $$ language plpgsql;
 create or replace function 
 	Q9(gid integer) returns setof AcObjRecord
 as $$
---... SQL statements, possibly using other views/functions defined by you ...
+	select null
 $$ language plpgsql;
 
 
@@ -306,6 +321,6 @@ $$ language plpgsql;
 create or replace function
 	Q10(code text) returns setof text
 as $$
---... SQL statements, possibly using other views/functions defined by you ...
+	select null
 $$ language plpgsql;
 
