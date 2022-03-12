@@ -94,7 +94,7 @@ create or replace view intl_students(id) as
 	where s.stype = 'intl'
 ;
 
--- link international students and law courses
+-- link distinct international students and law courses
 create or replace view law_enrolments_intl(student) as
 	select distinct le.student from law_enrolments as le
 	where le.student in (select id from intl_students)
@@ -108,11 +108,53 @@ create or replace view Q3(unswid, name) as
 
 
 -- Q4
-create or replace view Q4(unswid, name)
-as
---... SQL statements, possibly using other views/functions defined by you ...
+-- 'local' in students.stype
+-- courses.subject references subjects.id
+-- course_enrolments.course regerences courses.id
+-- course enrolments.student references students.id 
+
+-- find course ids and terms for COMP9020
+create or replace view course_COMP9020(id, term) as
+	select c.id, c.term from courses as c
+	where c.subject in (select id from subject_COMP9020)
 ;
 
+-- find course ids and terms for COMP9331
+create or replace view course_COMP9331(id, term) as
+	select c.id, c.term from courses as c
+	where c.subject in (select id from subject_COMP9331)
+;
+
+-- find all students and term enrolled in COMP9020
+create or replace view enrolments_COMP9020(student, term) as
+	select ce.student, cc.term from course_enrolments as ce
+	inner join course_COMP9020 as cc on ce.course = cc.id
+;
+
+-- find all students and term enrolled in COMP9331
+create or replace view enrolments_COMP9331(student, term) as
+	select ce.student, cc.term from course_enrolments as ce
+	inner join course_COMP9331 as cc on ce.course = cc.id
+;
+
+-- find students ernolled in both at same time
+create or replace view enrolments_both(student) as
+	select distinct e.student from enrolments_COMP9020 as e
+	where (e.student, e.term) in (select student, term from enrolments_COMP9331)
+;
+
+-- find local students who are enrolled in both
+create or replace view local_enrolments_both(id) as
+	select s.id from students as s
+	where s.id in (select student from enrolments_both)
+	and s.stype = 'local'
+;
+
+-- link unswid and name to local students enrolled in both
+create or replace view Q4(unswid, name) as
+	select p.unswid, p.name from people as p
+	where p.id in (select id from local_enrolments_both) 
+;
 
 -- Q5a
 create or replace view Q5a(term, min_fail_rate)
