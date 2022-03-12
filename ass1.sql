@@ -253,8 +253,80 @@ create or replace view Q5b(term, min_fail_rate) as
 	where n.rate = (select min(rate) from name_rate_b)
 ;
 
+----------------------------------------------------
+----------------------------------------------------
 
--- Q6
+create or replace view subject_COMP3311(id) as
+	select id from subjects
+	where code = 'COMP3311'
+;
+
+create or replace view courses_COMP3311(id) as
+	select id, term from courses
+	where subject in (select id from subject_COMP3311)
+;	
+
+create or replace view enrolments_COMP3311(course, mark) as
+	select ce.course, ce.mark from course_enrolments as ce
+	where ce.course in (select id from courses_COMP3311)
+	and ce.mark is not null
+;	
+
+create or replace view all_COMP3311(course, cnt) as
+	select course, count(*) from enrolments_COMP3311
+	group by course
+;
+
+create or replace view courses_with_fails(course) as
+	select course from enrolments_COMP3311
+	where mark < 50
+;
+
+create or replace view fails_COMP3311(course, cnt) as
+	select course, count(*) from courses_with_fails
+	group by course
+;
+
+create or replace view combine_COMP3311(course, rate) as
+	select a.course,
+	case
+		when f.course is null then 1::numeric(5,4)
+		else (f.cnt::float/a.cnt)::numeric(5,4)
+	end
+	from all_COMP3311 as a
+	left outer join fails_COMP3311 as f on a.course = f.course
+;
+
+create or replace view term_rate(term, rate) as
+	select c.term, com.rate from courses_COMP3311 as c
+	inner join combine_COMP3311 as com on c.id = com.course
+;
+
+create or replace view name_rate_a(term, rate) as
+	select t.name, tr.rate from terms as t
+	inner join term_rate as tr on t.id = tr.term
+	where t.year >= 2009
+	and t.year <= 2012
+;
+
+create or replace view Q5a(term, min_fail_rate) as
+	select term, rate from name_rate_a
+	where rate = (select min(rate) from name_rate_a)
+;
+
+create or replace view name_rate_b(term, rate) as
+	select t.name, tr.rate from terms as t
+	inner join term_rate as tr on t.id = tr.term
+	where t.year >= 2016
+	and t.year <= 2019
+;
+
+create or replace view Q5b(term, min) as
+	select term, rate from name_rate_b
+	where rate = (select min(rate) from name_rate_b)
+;
+
+--  Q6
 create or replace function 
 	Q6(id integer,code text) returns integer
 as $$
