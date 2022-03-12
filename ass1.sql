@@ -258,10 +258,23 @@ create or replace view Q5b(term, min) as
 ;
 
 --  Q6
+-- courses.subject references subject.id
+-- courses_enrolments.course references courses.id
+-- course_enrolments references students.id references people.id
+
+create or replace view enrolments_codes(id, code, mark) as
+	select p.id, s.code, ce.mark from course_enrolments as ce
+	inner join courses as c on ce.course = c.id
+	inner join subjects as s on c.subject= s.id
+	inner join people as p on ce.student = p.id
+;
+
 create or replace function 
-	Q6(id integer,code text) returns integer
+	Q6(id integer, code text) returns integer
 as $$
---... SQL statements, possibly using other views/functions defined by you ...
+	select mark from enrolments_codes
+	where $1 = id
+	and $2 = code
 $$ language sql;
 
 
