@@ -395,10 +395,62 @@ $$ language plpgsql;
 
 
 -- Q9
+-- acad_objects_groups.parent references acad_objects_groups.id
+
+create or replace view id_code_programs(id, code) as
+	select aog.id, p.code from acad_object_groups as aog
+	inner join program_group_members as pgm on aog.id = pgm.ao_group
+	inner join programs as p on pgm.program = p.id
+;
+
+create or replace view id_code_streams(id, code) as
+        select aog.id, s.code from acad_object_groups as aog
+        inner join stream_group_members as sgm on aog.id = sgm.ao_group
+        inner join streams as s on sgm.stream = s.id
+;
+
+create or replace view id_code_subjects(id, code) as
+	select aog.id, s.code from acad_object_groups as aog
+        inner join subject_group_members as sgm on aog.id = sgm.ao_group
+        inner join subjects as s on sgm.subject = s.id
+;
+
 create or replace function 
 	Q9(gid integer) returns setof AcObjRecord
 as $$
-	select null
+declare
+	rec record;
+	result AcObjRecord;
+	joined record;
+	objtype text = '';
+	objcode text = '';
+begin
+	for rec in
+		select * from acad_object_groups where id = $1
+	loop
+		if (rec.gdefby = 'query' or rec.negated = true or rec.definition like '%FREE%' or
+			rec.definition like '%GEN%' or rec.definition like '%F=%') then
+			continue;
+		end if;
+		objtype = rec.gtype;
+		if (rec.gtype = 'program') then
+			select code into objcode
+			from id_code_programs as icp
+			where icp.id = rec.id;
+		elsif (rec.gtype = 'stream') then
+			select code into objcode
+			from id_code_streams as icp
+			where icp.id = rec.id;
+		else
+			select code into objcode
+			from id_code_subjects as icp
+			where icp.id = rec.id;
+		end if;
+		result.objtype = objtype;
+		result.objcode = objcode;
+		return next result;
+	end loop;
+end;
 $$ language plpgsql;
 
 
