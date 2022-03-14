@@ -415,40 +415,53 @@ create or replace view id_code_subjects(id, code) as
         inner join subjects as s on sgm.subject = s.id
 ;
 
+create table temp (objtype text, objcode text);
+
 create or replace function 
 	Q9(gid integer) returns setof AcObjRecord
 as $$
 declare
 	rec record;
 	result AcObjRecord;
-	joined record;
-	objtype text = '';
-	objcode text = '';
+	child record;
+	result1 record;
 begin
 	for rec in
-		select * from acad_object_groups where id = $1
+		select * from acad_object_groups
+	       	where id = $1
 	loop
 		if (rec.gdefby = 'query' or rec.negated = true or rec.definition like '%FREE%' or
 			rec.definition like '%GEN%' or rec.definition like '%F=%') then
 			continue;
 		end if;
-		objtype = rec.gtype;
-		if (rec.gtype = 'program') then
-			select code into objcode
-			from id_code_programs as icp
-			where icp.id = rec.id;
-		elsif (rec.gtype = 'stream') then
-			select code into objcode
-			from id_code_streams as icp
-			where icp.id = rec.id;
-		else
-			select code into objcode
-			from id_code_subjects as icp
-			where icp.id = rec.id;
+		if (rec.gdefby = 'enumerated') then
+			result.objtype = rec.gtype;
+			if (rec.gtype = 'program') then
+				select code into result.objcode
+				from id_code_programs as icp
+				where icp.id = rec.id;
+			elsif (rec.gtype = 'stream') then
+				select code into result.objcode
+				from id_code_streams as icp
+				where icp.id = rec.id;
+			else
+				select code into result.objcode
+				from id_code_subjects as icp
+				where icp.id = rec.id;
+			end if;
+			execute 'insert into temp values ($1, $2)'
+			using result.objcode, result.opbtype
+			return next result;
+			for child in
+				select * from acad_object_groups as aog
+				where rec.id = aog.parent
+			loop
+				execute 'select * from q9($1)'
+				into result1
+				using child.id;
+				return next result1;
+			end loop;
 		end if;
-		result.objtype = objtype;
-		result.objcode = objcode;
-		return next result;
 	end loop;
 end;
 $$ language plpgsql;
