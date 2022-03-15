@@ -484,6 +484,17 @@ begin
 end;
 $$ language plpgsql;
 
+create or replace view all_group_members(code, ao_group) as
+	select s.code, sgm.ao_group from subject_group_members as sgm
+	inner join subjects as s on sgm.subject = s.id
+	union
+	select s.code, sgm.ao_group from stream_group_members as sgm
+	inner join streams as s on sgm.stream = s.id
+	union
+	select p.code, pgm.ao_group from program_group_members as pgm
+	inner join programs as p on pgm.program = p.id
+;
+
 create or replace function
 	Q9(gid integer) returns setof AcObjRecord
 as $$
@@ -492,29 +503,33 @@ declare
 	result AcObjRecord;
 	group_rec record;
 begin
-	select * into rec 
-	from acad_object_groups as aog
-	where aog.id = $1;
-
-	if (rec.gdefby = 'query' or rec.negated = true or rec.definition like '%FREE%' or
-	    rec.definition like '%GEN%' or rec.definition like '%F=%') then
-		return;
-	end if;
+	for rec in 
+		select * from acad_object_groups as aog
+		where aog.id = $1
+		or aog.parent = $1
+	loop
+		if (rec.gdefby = 'query' or rec.negated = true or rec.definition like '%FREE%' or
+	    	    rec.definition like '%GEN%' or rec.definition like '%F=%') then
+			return;
+		end if;
 	
-	if (rec.gdefby = 'enumerated') then
-		for group_rec in
-			select * from subject_group_members
-			where ao_group = rec.id
-		loop
-			result.objtype = rec.gtype;
-			select s.code into result.objcode
-			from subjects as s
-			where s.id = group_rec.subject;	
-			
-			return next result;
+		if (rec.gdefby = 'enumerated') then
+			for group_rec in
+				--select * from subject_group_members
+				--where ao_group = rec.id
+				select * from all_group_members
+				where ao_group = rec.id
+			loop
+				result.objtype := rec.gtype;
+				result.objcode := group_rec.code;	
+				--select s.code into result.objcode
+				--from subjects as s
+				--where s.id = group_rec.subject;
+				return next result;
 		
-		end loop;	
-	end if;
+			end loop;
+		end if;
+	end loop;
 	return;
 end;
 $$ language plpgsql;
