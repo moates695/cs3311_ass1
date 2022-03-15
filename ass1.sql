@@ -417,14 +417,24 @@ create or replace view id_code_subjects(id, code) as
 
 create table temp (objtype text, objcode text);
 
-create or replace function 
+create or replace function
 	Q9(gid integer) returns setof AcObjRecord
+as $$
+begin
+	perform select * from do_Q9($1, true);
+end;
+$$ language plpgsql;
+
+create or replace function 
+	do_Q9(gid integer, find_children boolean) returns setof AcObjRecord
 as $$
 declare
 	rec record;
 	result AcObjRecord;
 	child record;
 	result1 record;
+	enum record;
+	grp integer;
 begin
 	for rec in
 		select * from acad_object_groups
@@ -449,20 +459,63 @@ begin
 				from id_code_subjects as icp
 				where icp.id = rec.id;
 			end if;
-			execute 'insert into temp values ($1, $2)'
-			using result.objcode, result.opbtype
-			return next result;
-			for child in
-				select * from acad_object_groups as aog
-				where rec.id = aog.parent
+			select sgm.ao_group into grp
+			from subject_group_members as sgm
+			where sgm.ao_group = rec.id;
+			for enum in 
+				select * from subject_group_members as sgm
+			      	where sgm.ao_group= rec.id
 			loop
-				execute 'select * from q9($1)'
-				into result1
-				using child.id;
-				return next result1;
-			end loop;
+				result.objtype = 'a';
+				result.objcode = 'b';
+				return next result;
+			end loop;	
+		if ($2 = true) then
+				for child in
+					select * from acad_object_groups
+					where parent = rec.id
+				loop
+					select * from do_Q9(child.id, false);		
+				end loop;
+			end if;
+			return next result;
 		end if;
 	end loop;
+end;
+$$ language plpgsql;
+
+create or replace function
+	Q9(gid integer) returns setof AcObjRecord
+as $$
+declare
+	rec record;
+	result AcObjRecord;
+	group_rec record;
+begin
+	select * into rec 
+	from acad_object_groups as aog
+	where aog.id = $1;
+
+	if (rec.gdefby = 'query' or rec.negated = true or rec.definition like '%FREE%' or
+	    rec.definition like '%GEN%' or rec.definition like '%F=%') then
+		return;
+	end if;
+	
+	if (rec.gdefby = 'enumerated') then
+		for group_rec in
+			select * from subject_group_members
+			where ao_group = rec.id
+		loop
+			result.objtype = rec.gtype;
+			select s.code into result.objcode
+			from subjects as s
+			where s.id = group_rec.subject;	
+			
+			return next result;
+		
+		end loop;	
+	end if;
+	return;
 end;
 $$ language plpgsql;
 
