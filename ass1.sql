@@ -484,7 +484,12 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace view all_group_members(code, ao_group) as
+-----------------------------------------
+-----------------------------------------
+
+create table all_Q9(objtype, objcode);
+
+create or replace view group_members(code, ao_group) as
 	select s.code, sgm.ao_group from subject_group_members as sgm
 	inner join subjects as s on sgm.subject = s.id
 	union
@@ -495,6 +500,19 @@ create or replace view all_group_members(code, ao_group) as
 	inner join programs as p on pgm.program = p.id
 ;
 
+create or replace view all_group_members(gtype, code, ao_group) as
+	select aog.gtype, gm.code, gm.ao_group from acad_object_groups as aog
+	inner join group_members as gm on aog.id = gm.ao_group
+;
+
+create or replace view all_codes(code, gtype) as
+	select code, 'subject' from subjects
+	union
+	select code, 'stream' from streams
+	union
+	select code, 'program' from programs
+;
+
 create or replace function
 	Q9(gid integer) returns setof AcObjRecord
 as $$
@@ -502,33 +520,52 @@ declare
 	rec record;
 	result AcObjRecord;
 	group_rec record;
+	pattern text := '';
 begin
-	for rec in 
-		select * from acad_object_groups as aog
-		where aog.id = $1
-		or aog.parent = $1
+	-- retrive all patterns
+	for rec in
+		select * from acad_object_groups
+		where id = $1
+	       	or parent = $1	
 	loop
-		if (rec.gdefby = 'query' or rec.negated = true or rec.definition like '%FREE%' or
-	    	    rec.definition like '%GEN%' or rec.definition like '%F=%') then
+		if (rec.gdefby = 'query' or rec.negated = true or rec.definition like '%FREE%' or 
+		    rec.definition like '%GEN%' or rec.definition like '%F=%') then
+			continue;
+		elsif (rec.gdefby = 'pattern') then
+			pattern := pattern||','||rec.definition;
+		end if;
+	end loop;
+	-- return all objects matching a pattern
+	for rec in
+		select * from all_codes
+		where code similar to '('||replace(replace(replace(replace(pattern,'#','_'),',','|'),'{','('),'}',')')||')'
+	loop
+		result.objtype := rec.gtype;
+		result.objcode := rec.code;
+		return next result;
+	end loop;
+	-- return all enumerated groups
+	for rec in 
+		select * from acad_object_groups
+		where id = $1
+		or parent = $1
+	loop
+		if (rec.gdefby = 'query' or rec.negated = true) then
 			return;
 		end if;
-	
-		if (rec.gdefby = 'enumerated') then
-			for group_rec in
-				--select * from subject_group_members
-				--where ao_group = rec.id
-				select * from all_group_members
-				where ao_group = rec.id
-			loop
-				result.objtype := rec.gtype;
-				result.objcode := group_rec.code;	
-				--select s.code into result.objcode
-				--from subjects as s
-				--where s.id = group_rec.subject;
-				return next result;
-		
-			end loop;
-		end if;
+		for group_rec in
+			--select * from subject_group_members
+			--where ao_group = rec.id
+			select * from all_group_members
+			where ao_group = rec.id
+		loop
+			result.objtype := rec.gtype;
+			result.objcode := group_rec.code;	
+			--select s.code into result.objcode
+			--from subjects as s
+			--where s.id = group_rec.subject;
+			return next result;
+		end loop;
 	end loop;
 	return;
 end;
