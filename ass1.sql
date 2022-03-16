@@ -421,7 +421,7 @@ begin
 	if (gid not in (select id from acad_object_groups)) then
 		raise 'No such group %', $1;
 	end if;
-	-- retrive all patterns
+	-- retrive all patterns and enumerate groups
 	for rec in
 		select * from acad_object_groups
 		where id = $1
@@ -432,6 +432,15 @@ begin
 			continue;
 		elsif (rec.gdefby = 'pattern') then
 			pattern := pattern||','||rec.definition;
+		else
+			for group_rec in
+				select * from all_group_members
+				where ao_group = rec.id
+			loop
+				result.objtype := rec.gtype;
+				result.objcode := group_rec.code;
+				return next result;
+			end loop;
 		end if;
 	end loop;
 	-- return all objects matching a pattern
@@ -452,25 +461,6 @@ begin
 		result.objcode := rec.code;
 		return next result;
 	end loop;
-	-- return all enumerated groups
-	for rec in 
-		select * from acad_object_groups
-		where id = $1
-		or parent = $1
-	loop
-		if (rec.gdefby = 'query' or rec.negated = true) then
-			return;
-		elsif (rec.gdefby = 'enumerated') then
-			for group_rec in			
-				select * from all_group_members
-				where ao_group = rec.id
-			loop
-				result.objtype := rec.gtype;
-				result.objcode := group_rec.code;
-				return next result;
-			end loop;
-		end if;
-	end loop;
 	return;
 end;
 $$ language plpgsql;
@@ -479,11 +469,23 @@ $$ language plpgsql;
 -- QUESTION 10
 ---------------------------------------------------------------------
 
+create or replace view id_code(id, code) as
+	select aog.id from acad_object_groups as aog
+	inner join subject_group_members as sgm on aog.id = sgm.ao_group
+	inner join subjects as s on sgm.subject = s.id
+;
+
 create or replace function
 	Q10(code text) returns setof text
 as $$
+declare
+	id integer;
+	ids integer[];
+	result text;
 begin
-	
+	select aog.id into id
+	from acad_object_groups as aog
+	i
 end;
 $$ language plpgsql;
 
