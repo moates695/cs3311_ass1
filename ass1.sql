@@ -469,9 +469,15 @@ $$ language plpgsql;
 -- QUESTION 10
 ---------------------------------------------------------------------
 
-create or replace view id_code(id, code) as
-	select aog.id from acad_object_groups as aog
-	inner join subject_group_members as sgm on aog.id = sgm.ao_group
+create or replace view prereqs(rule_id, subjcode, definition) as
+	select r.id, s.code, aog.definition from subject_prereqs as sp
+	inner join rules as r on sp.rule = r.id
+	inner join acad_object_groups as aog on r.ao_group = aog.id
+	inner join subjects as s on sp.subject = s.id
+;
+
+create or replace view code_members(code, ao_group) as
+	select s.code, sgm.ao_group from subject_group_members as sgm
 	inner join subjects as s on sgm.subject = s.id
 ;
 
@@ -479,13 +485,16 @@ create or replace function
 	Q10(code text) returns setof text
 as $$
 declare
-	id integer;
-	ids integer[];
+	rec record;
 	result text;
 begin
-	select aog.id into id
-	from acad_object_groups as aog
-	i
+	for rec in
+		select * from prereqs
+		where code similar to '('||replace(definition,',','|')||')'
+	loop
+		result := rec.subjcode;
+		return next result;
+	end loop;
 end;
 $$ language plpgsql;
 
