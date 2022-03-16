@@ -554,15 +554,16 @@ begin
 	loop
 		if (rec.gdefby = 'query' or rec.negated = true) then
 			return;
+		elsif (rec.gdefby = 'enumerated') then
+			for group_rec in			
+				select * from all_group_members
+				where ao_group = rec.id
+			loop
+				result.objtype := rec.gtype;
+				result.objcode := group_rec.code;
+				return next result;
+			end loop;
 		end if;
-		for group_rec in			
-			select * from all_group_members
-			where ao_group = rec.id
-		loop
-			result.objtype := rec.gtype;
-			result.objcode := group_rec.code;
-			return next result;
-		end loop;
 	end loop;
 	return;
 end;
