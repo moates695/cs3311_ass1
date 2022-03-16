@@ -487,9 +487,7 @@ $$ language plpgsql;
 -----------------------------------------
 -----------------------------------------
 
-create table all_Q9(objtype, objcode);
-
-create or replace view group_members(code, ao_group) as
+create or replace view all_group_members(code, ao_group) as
 	select s.code, sgm.ao_group from subject_group_members as sgm
 	inner join subjects as s on sgm.subject = s.id
 	union
@@ -498,11 +496,6 @@ create or replace view group_members(code, ao_group) as
 	union
 	select p.code, pgm.ao_group from program_group_members as pgm
 	inner join programs as p on pgm.program = p.id
-;
-
-create or replace view all_group_members(gtype, code, ao_group) as
-	select aog.gtype, gm.code, gm.ao_group from acad_object_groups as aog
-	inner join group_members as gm on aog.id = gm.ao_group
 ;
 
 create or replace view all_codes(code, gtype) as
@@ -538,8 +531,17 @@ begin
 	-- return all objects matching a pattern
 	for rec in
 		select * from all_codes
-		where code similar to '('||replace(replace(replace(replace(pattern,'#','_'),',','|'),'{','('),'}',')')||')'
-	loop
+		where code similar to '('||replace(
+					   replace(
+					   replace(
+					   replace(
+					   replace(pattern,
+						   '#','_'),
+						   '{',''),
+						   '}',''),
+						   ';','|'),
+						   ',','|')||')'
+		loop
 		result.objtype := rec.gtype;
 		result.objcode := rec.code;
 		return next result;
@@ -553,17 +555,12 @@ begin
 		if (rec.gdefby = 'query' or rec.negated = true) then
 			return;
 		end if;
-		for group_rec in
-			--select * from subject_group_members
-			--where ao_group = rec.id
+		for group_rec in			
 			select * from all_group_members
 			where ao_group = rec.id
 		loop
 			result.objtype := rec.gtype;
-			result.objcode := group_rec.code;	
-			--select s.code into result.objcode
-			--from subjects as s
-			--where s.id = group_rec.subject;
+			result.objcode := group_rec.code;
 			return next result;
 		end loop;
 	end loop;
