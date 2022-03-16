@@ -1,8 +1,8 @@
 -- comp3311 22T1 Assignment 1
 
--- Q1
--- students.id references people.id
--- program_enrolments.student references students.id
+---------------------------------------------------------------------
+-- QUESTION 1
+---------------------------------------------------------------------
 
 -- eliminate (student, program) pair duplicates
 create or replace view distinctprograms(student) as
@@ -24,11 +24,9 @@ create or replace view Q1(unswid, name) as
 	where p.id in (select np.student from nprograms as np)
 ;
 
--- Q2
--- 'Course Tutor' in staff_roles.names
--- course_staff.role references staff_roles.id
--- course_staff.staff references staff.id
--- staff.id references people.id
+---------------------------------------------------------------------
+-- QUESTION 2
+---------------------------------------------------------------------
 
 -- find all tutor role ids
 create or replace view tutor_ids(tutor_id) as
@@ -55,13 +53,9 @@ create or replace view Q2(unswid, name, course_cnt) as
 	inner join max_tutors as mt on p.id = mt.staff
 ;
 
--- Q3
--- 'intl' in students.stype
--- 'School of Law' in orgunits.name
--- subjects.offeredby references orgunits.id
--- course_enrolments.student references students.id
--- course_enrolments.course references courses.id
--- courses.subject references subjects.id  
+---------------------------------------------------------------------
+-- QUESTION 3
+---------------------------------------------------------------------  
 
 -- find orgunit ids for School of Law
 create or replace view law_ids(id) as
@@ -106,12 +100,9 @@ create or replace view Q3(unswid, name) as
 	where p.id in (select student from law_enrolments_intl)
 ;
 
-
--- Q4
--- 'local' in students.stype
--- courses.subject references subjects.id
--- course_enrolments.course regerences courses.id
--- course enrolments.student references students.id 
+---------------------------------------------------------------------
+-- QUESTION 4
+---------------------------------------------------------------------
 
 -- find ids and terms for COMP9020
 create or replace view subject_COMP9020(id) as
@@ -168,11 +159,9 @@ create or replace view Q4(unswid, name) as
 	where p.id in (select id from local_enrolments_both) 
 ;
 
--- Q5
--- 'COMP3311' in subjects.code
--- courses.subject references subject.id
--- courses.term references terms.id
--- course_enrolments.course references courses.id
+---------------------------------------------------------------------
+-- QUESTION 5
+---------------------------------------------------------------------
 
 -- find subject ids for COMP3311
 create or replace view subject_COMP3311(id) as
@@ -257,11 +246,11 @@ create or replace view Q5b(term, min) as
 	where rate = (select min(rate) from name_rate_b)
 ;
 
---  Q6
--- courses.subject references subject.id
--- courses_enrolments.course references courses.id
--- course_enrolments references students.id references people.id
+--------------------------------------------------------------------
+--  QUESTION 6
+---------------------------------------------------------------------
 
+-- join id, code, mark together
 create or replace view enrolments_codes(id, code, mark) as
 	select p.id, s.code, ce.mark from course_enrolments as ce
 	inner join courses as c on ce.course = c.id
@@ -277,8 +266,10 @@ as $$
 	and $2 = code
 $$ language sql;
 
+---------------------------------------------------------------------
+-- QUESTION 7
+---------------------------------------------------------------------
 
--- Q7
 create or replace function 
 	Q7(year integer, session text) returns table (code text)
 as $$
@@ -291,14 +282,11 @@ as $$
 	and t.session = $2
 $$ language sql;
 
--- Q8
+---------------------------------------------------------------------
+-- QUESTION 8
+--------------------------------------------------------------------
 
-select c.term, ce.mark, ce.grade, s.uoc from course_enrolments as ce
-inner join people as p on ce.student = p.id
-inner join courses as c on ce.course = c.id
-inner join subjects as s on c.subject = s.id
-where p.id = 5555555;
-
+-- helper function, returns data needed for Q8 function
 create or replace function
 	q8_data(zid integer) returns table (term integer, mark integer, grade gradeType, uoc integer)
 as $$
@@ -310,6 +298,7 @@ as $$
 	order by c.term
 $$ language sql;
 
+-- returned the academic transcript for a student defined by zid
 create or replace function
 	Q8(zid integer) returns setof TermTranscriptRecord
 as $$
@@ -393,100 +382,11 @@ begin
 end;
 $$ language plpgsql;
 
+---------------------------------------------------------------------
+-- QUESTION 9
+---------------------------------------------------------------------
 
--- Q9
--- acad_objects_groups.parent references acad_objects_groups.id
-
-create or replace view id_code_programs(id, code) as
-	select aog.id, p.code from acad_object_groups as aog
-	inner join program_group_members as pgm on aog.id = pgm.ao_group
-	inner join programs as p on pgm.program = p.id
-;
-
-create or replace view id_code_streams(id, code) as
-        select aog.id, s.code from acad_object_groups as aog
-        inner join stream_group_members as sgm on aog.id = sgm.ao_group
-        inner join streams as s on sgm.stream = s.id
-;
-
-create or replace view id_code_subjects(id, code) as
-	select aog.id, s.code from acad_object_groups as aog
-        inner join subject_group_members as sgm on aog.id = sgm.ao_group
-        inner join subjects as s on sgm.subject = s.id
-;
-
-create table temp (objtype text, objcode text);
-
-create or replace function
-	Q9(gid integer) returns setof AcObjRecord
-as $$
-begin
-	perform select * from do_Q9($1, true);
-end;
-$$ language plpgsql;
-
-create or replace function 
-	do_Q9(gid integer, find_children boolean) returns setof AcObjRecord
-as $$
-declare
-	rec record;
-	result AcObjRecord;
-	child record;
-	result1 record;
-	enum record;
-	grp integer;
-begin
-	for rec in
-		select * from acad_object_groups
-	       	where id = $1
-	loop
-		if (rec.gdefby = 'query' or rec.negated = true or rec.definition like '%FREE%' or
-			rec.definition like '%GEN%' or rec.definition like '%F=%') then
-			continue;
-		end if;
-		if (rec.gdefby = 'enumerated') then
-			result.objtype = rec.gtype;
-			if (rec.gtype = 'program') then
-				select code into result.objcode
-				from id_code_programs as icp
-				where icp.id = rec.id;
-			elsif (rec.gtype = 'stream') then
-				select code into result.objcode
-				from id_code_streams as icp
-				where icp.id = rec.id;
-			else
-				select code into result.objcode
-				from id_code_subjects as icp
-				where icp.id = rec.id;
-			end if;
-			select sgm.ao_group into grp
-			from subject_group_members as sgm
-			where sgm.ao_group = rec.id;
-			for enum in 
-				select * from subject_group_members as sgm
-			      	where sgm.ao_group= rec.id
-			loop
-				result.objtype = 'a';
-				result.objcode = 'b';
-				return next result;
-			end loop;	
-		if ($2 = true) then
-				for child in
-					select * from acad_object_groups
-					where parent = rec.id
-				loop
-					select * from do_Q9(child.id, false);		
-				end loop;
-			end if;
-			return next result;
-		end if;
-	end loop;
-end;
-$$ language plpgsql;
-
------------------------------------------
------------------------------------------
-
+-- find all subject, stream and program codes and ao_groups
 create or replace view all_group_members(code, ao_group) as
 	select s.code, sgm.ao_group from subject_group_members as sgm
 	inner join subjects as s on sgm.subject = s.id
@@ -498,6 +398,7 @@ create or replace view all_group_members(code, ao_group) as
 	inner join programs as p on pgm.program = p.id
 ;
 
+-- extract all subject, stream and program codes and their type
 create or replace view all_codes(code, gtype) as
 	select code, 'subject' from subjects
 	union
@@ -506,6 +407,7 @@ create or replace view all_codes(code, gtype) as
 	select code, 'program' from programs
 ;
 
+-- return all members of the academic group defined by gid
 create or replace function
 	Q9(gid integer) returns setof AcObjRecord
 as $$
@@ -515,6 +417,10 @@ declare
 	group_rec record;
 	pattern text := '';
 begin
+	-- check that gid exists
+	if (gid not in (select id from acad_object_groups)) then
+		raise 'No such group %', $1;
+	end if;
 	-- retrive all patterns
 	for rec in
 		select * from acad_object_groups
@@ -569,11 +475,15 @@ begin
 end;
 $$ language plpgsql;
 
+---------------------------------------------------------------------
+-- QUESTION 10
+---------------------------------------------------------------------
 
--- Q10
 create or replace function
 	Q10(code text) returns setof text
 as $$
-	select null
+begin
+	
+end;
 $$ language plpgsql;
 
