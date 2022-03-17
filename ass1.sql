@@ -34,7 +34,7 @@ create or replace view tutor_ids(tutor_id) as
 	where name = 'Course Tutor';
 ;
 
--- find all tutors with count
+-- find all tutors and count
 create or replace view course_tutors(staff, cnt) as
 	select staff, count(*) from course_staff
 	where role in (select * from tutor_ids)
@@ -47,7 +47,7 @@ create or replace view max_tutors(staff, cnt) as
 	where cnt = (select max(cnt) from course_tutors)
 ;
 
--- link unswid, name and cnt
+-- link to unswid and name
 create or replace view Q2(unswid, name, course_cnt) as
 	select p.unswid, p.name, mt.cnt from people as p
 	inner join max_tutors as mt on p.id = mt.staff
@@ -63,17 +63,12 @@ create or replace view law_ids(id) as
 	where name = 'School of Law'
 ;
 
--- find subjects offered by School of Law
-create or replace view law_subjects(id) as 
-	select s.id from subjects as s
-	where s.offeredby in (select id from law_ids)
-;
-
--- find course ids that are law subjects
-create or replace view law_courses(id) as
+-- find course ids of all law subjects
+create or replace view law_course(id) as
 	select c.id from courses as c
-      	where c.subject in (select id from law_subjects)
-;	
+	inner join subjects as s on c.subject = s.id
+	inner join law_ids as li on s.offeredby = li.id
+;
 
 -- find all enrolments in law courses
 create or replace view law_enrolments(student) as
@@ -82,16 +77,10 @@ create or replace view law_enrolments(student) as
 	and ce.mark > 85
 ;
 
--- find international students ids
-create or replace view intl_students(id) as
-	select s.id from students as s
-	where s.stype = 'intl'
-;
-
 -- link distinct international students and law courses
 create or replace view law_enrolments_intl(student) as
 	select distinct le.student from law_enrolments as le
-	where le.student in (select id from intl_students)
+	where le.student in (select id from students where stype='intl')
 ;
 
 -- link with unswid, name
@@ -110,37 +99,27 @@ create or replace view subject_COMP9020(id) as
 	where s.code = 'COMP9020'
 ;
 
--- find ids and terms fro COMP9331
+-- find ids and terms for COMP9331
 create or replace view subject_COMP9331(id) as
 	select s.id from subjects as s
 	where s.code = 'COMP9331'
 ;
 
--- find course ids and terms for COMP9020
-create or replace view course_COMP9020(id, term) as
-	select c.id, c.term from courses as c
-	where c.subject in (select id from subject_COMP9020)
-;
-
--- find course ids and terms for COMP9331
-create or replace view course_COMP9331(id, term) as
-	select c.id, c.term from courses as c
-	where c.subject in (select id from subject_COMP9331)
-;
-
--- find all students and term enrolled in COMP9020
+-- find students enrolled in COMP9020 and the term
 create or replace view enrolments_COMP9020(student, term) as
-	select ce.student, cc.term from course_enrolments as ce
-	inner join course_COMP9020 as cc on ce.course = cc.id
+	select ce.student, c.term from courses as c
+	inner join course_enrolments as ce on c.id = ce.course
+	inner join subject_COMP9020 as s on c.subject = s.id
 ;
 
--- find all students and term enrolled in COMP9331
+-- find students enrolled in COMP9331 and the term
 create or replace view enrolments_COMP9331(student, term) as
-	select ce.student, cc.term from course_enrolments as ce
-	inner join course_COMP9331 as cc on ce.course = cc.id
+	select ce.student, c.term from courses as c
+	inner join course_enrolments as ce on c.id = ce.course
+	inner join subject_COMP9331 as s on c.subject = s.id
 ;
 
--- find students ernolled in both at same time
+-- find students enrolled in both at same time
 create or replace view enrolments_both(student) as
 	select distinct e.student from enrolments_COMP9020 as e
 	where (e.student, e.term) in (select student, term from enrolments_COMP9331)
@@ -153,7 +132,7 @@ create or replace view local_enrolments_both(id) as
 	and s.stype = 'local'
 ;
 
--- link unswid and name to local students enrolled in both
+-- link unswid and name
 create or replace view Q4(unswid, name) as
 	select p.unswid, p.name from people as p
 	where p.id in (select id from local_enrolments_both) 
@@ -255,9 +234,11 @@ create or replace view enrolments_codes(id, code, mark) as
 	select p.id, s.code, ce.mark from course_enrolments as ce
 	inner join courses as c on ce.course = c.id
 	inner join subjects as s on c.subject= s.id
-	inner join people as p on ce.student = p.id
+	inner join students as stu on ce.student = stu.id
+	inner join people as p on stu.id = p.id
 ;
 
+-- return students mark for the given course
 create or replace function 
 	Q6(id integer, code text) returns integer
 as $$
@@ -270,6 +251,7 @@ $$ language sql;
 -- QUESTION 7
 ---------------------------------------------------------------------
 
+-- return all postgraduate COMP courses for the given period
 create or replace function 
 	Q7(year integer, session text) returns table (code text)
 as $$
