@@ -272,15 +272,16 @@ $$ language sql;
 create or replace function
 	q8_data(zid integer) returns table (term integer, mark integer, grade gradeType, uoc integer)
 as $$
-	select c.term, ce.mark, ce.grade, s.uoc from course_enrolments as ce
-	inner join people as p on ce.student = p.id
+	select c.term, ce.mark, ce.grade, sub.uoc from course_enrolments as ce
+	inner join students as stu on ce.student = stu.id
+	inner join people as p on stu.id = p.id
 	inner join courses as c on ce.course = c.id
-	inner join subjects as s on c.subject = s.id
+	inner join subjects as sub on c.subject = sub.id
 	where p.unswid = $1
 	order by c.term
 $$ language sql;
 
--- returned the academic transcript for a student defined by zid
+-- returns the academic transcript for a student defined by zid
 create or replace function
 	Q8(zid integer) returns setof TermTranscriptRecord
 as $$
@@ -308,7 +309,7 @@ begin
 			case
 				when t_all_uoc = 0 then result.termwam := null;
 				when t_wsum = 0 then result.termwam := null;
-				else result.termwam := (t_wsum::float/t_all_uoc)::numeric(2,0);
+				else result.termwam := (t_wsum::float/t_all_uoc)::numeric(3,0);
 			end case;
 			case
 				when t_pass_uoc = 0 then result.termuocpassed := null;
@@ -340,7 +341,7 @@ begin
 		case
 			when t_all_uoc = 0 then result.termwam := null;
 			when t_wsum = 0 then result.termwam := null;
-			else result.termwam := (t_wsum::float/t_all_uoc)::numeric(2,0);
+			else result.termwam := (t_wsum::float/t_all_uoc)::numeric(3,0);
 		end case;
 		case
 			when t_pass_uoc = 0 then result.termuocpassed := null;
@@ -352,7 +353,7 @@ begin
 		case
 			when all_uoc = 0 then result.termwam := null;
 			when wsum = 0 then result.termwam := null;
-			else result.termwam := (wsum::float/all_uoc)::numeric(2,0);
+			else result.termwam := (wsum::float/all_uoc)::numeric(3,0);
 		end case;
 		case
 			when pass_uoc = 0 then result.termuocpassed := null;
@@ -398,6 +399,9 @@ declare
 	result AcObjRecord;
 	group_rec record;
 	pattern text := '';
+	num_patterns integer := 0;
+	i integer;
+	single text := '';
 begin
 	-- check that gid exists
 	if (gid not in (select id from acad_object_groups)) then
@@ -426,24 +430,52 @@ begin
 		end if;
 	end loop;
 	-- return all objects matching a pattern
-	for rec in
-		select * from all_codes
-		where code similar to '('||replace(
-					   replace(
-					   replace(
-					   replace(
-					   replace(pattern,
-						   '#','_'),
-						   '{',''),
-						   '}',''),
-						   ';','|'),
-						   ',','|')||')'
-		loop
-		result.objtype := rec.gtype;
-		result.objcode := rec.code;
-		return next result;
+	select (char_length(pattern)-char_length(replace(pattern,',','')))
+	into num_patterns;
+	for i in 1..(num_patterns + 1) loop
+		select split_part(pattern, ',', i) 
+		into single;
+		single := '('||replace(
+			       replace(
+			       replace(
+			       replace(
+			       replace(single,
+				       '#','_'),
+				       '{',''),
+				       '}',''),
+				       ';','|'),
+				       ',','|')||')';
+		if (single like '%#%' or single like '%[%' or single like '%_%') then
+			for rec in
+				select * from all_codes
+				where code similar to single
+			loop
+				result.objtype := rec.gtype;
+				result.objcode := rec.code;
+				return next result;
+			end loop;
+		else
+			continue;
+		end if;
 	end loop;
-	return;
+	--for rec in
+	--	select * from all_codes
+	--	where code similar to '('||replace(
+	--				   replace(
+	--				   replace(
+	--				   replace(
+	--				   replace(pattern,
+	--					   '#','_'),
+	--					   '{',''),
+	--					   '}',''),
+	--					   ';','|'),
+	--					   ',','|')||')'
+	--	loop
+	--	result.objtype := rec.gtype;
+	--	result.objcode := rec.code;
+	--	return next result;
+	--end loop;
+	--return;
 end;
 $$ language plpgsql;
 
@@ -451,8 +483,8 @@ $$ language plpgsql;
 -- QUESTION 10
 ---------------------------------------------------------------------
 
-create or replace view prereqs(rule_id, subjcode, definition) as
-	select r.id, s.code, aog.definition from subject_prereqs as sp
+create or replace view prereqs(aog_id, subjcode, definition) as
+	select aog.id, s.code, aog.definition from subject_prereqs as sp
 	inner join rules as r on sp.rule = r.id
 	inner join acad_object_groups as aog on r.ao_group = aog.id
 	inner join subjects as s on sp.subject = s.id
@@ -469,6 +501,7 @@ as $$
 declare
 	rec record;
 	result text;
+	sub_rec record;
 begin
 	for rec in
 		select * from prereqs
@@ -476,6 +509,13 @@ begin
 	loop
 		result := rec.subjcode;
 		return next result;
+		for sub_rec in
+			select * from code_members
+			where ao_group = rec.aog_id
+		loop
+			result := sub_rec.code;
+			return next result;
+		end loop;
 	end loop;
 end;
 $$ language plpgsql;
