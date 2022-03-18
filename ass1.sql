@@ -64,7 +64,7 @@ create or replace view law_ids(id) as
 ;
 
 -- find course ids of all law subjects
-create or replace view law_course(id) as
+create or replace view law_courses(id) as
 	select c.id from courses as c
 	inner join subjects as s on c.subject = s.id
 	inner join law_ids as li on s.offeredby = li.id
