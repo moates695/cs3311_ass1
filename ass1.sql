@@ -402,6 +402,7 @@ declare
 	num_patterns integer := 0;
 	i integer;
 	single text := '';
+	already_added text := '';
 begin
 	-- check that gid exists
 	if (gid not in (select id from acad_object_groups)) then
@@ -423,59 +424,52 @@ begin
 				select * from all_group_members
 				where ao_group = rec.id
 			loop
+				if (group_rec.code similar to already_added) then
+					continue;
+				end if;
 				result.objtype := rec.gtype;
 				result.objcode := group_rec.code;
 				return next result;
+				already_added := already_added||group_rec.code||'|';
 			end loop;
 		end if;
 	end loop;
 	-- return all objects matching a pattern
+	pattern := replace(replace(replace(pattern,';',','),'{',''),'}','');
 	select (char_length(pattern)-char_length(replace(pattern,',','')))
 	into num_patterns;
-	for i in 1..(num_patterns + 1) loop
+	for i in 2..(num_patterns + 1) loop
 		select split_part(pattern, ',', i) 
 		into single;
-		single := '('||replace(
-			       replace(
-			       replace(
-			       replace(
-			       replace(single,
-				       '#','_'),
-				       '{',''),
-				       '}',''),
-				       ';','|'),
-				       ',','|')||')';
-		if (single like '%#%' or single like '%[%' or single like '%_%') then
+		single := replace(single,'#','_');
+		if (single like '%\_%' or single like '%#%' or single like '%[%' or 
+		    single like '%(%') then
 			for rec in
 				select * from all_codes
 				where code similar to single
 			loop
+				if (rec.code similar to already_added) then
+					continue;
+				end if;
 				result.objtype := rec.gtype;
 				result.objcode := rec.code;
 				return next result;
+				already_added := already_added||rec.code||'|';
 			end loop;
-		else
-			continue;
+		elsif (single not similar to already_added) then
+			if (char_length(single) = 8) then
+				result.objtype := 'subject';
+			elsif (char_length(single) = 6) then
+				result.objtype := 'stream'; 
+			else
+				result.objtype := 'program';
+			end if;
+			result.objcode := single;
+			return next result;
+			already_added := already_added||single||'|';
 		end if;
 	end loop;
-	--for rec in
-	--	select * from all_codes
-	--	where code similar to '('||replace(
-	--				   replace(
-	--				   replace(
-	--				   replace(
-	--				   replace(pattern,
-	--					   '#','_'),
-	--					   '{',''),
-	--					   '}',''),
-	--					   ';','|'),
-	--					   ',','|')||')'
-	--	loop
-	--	result.objtype := rec.gtype;
-	--	result.objcode := rec.code;
-	--	return next result;
-	--end loop;
-	--return;
+	return;
 end;
 $$ language plpgsql;
 
@@ -502,21 +496,31 @@ declare
 	rec record;
 	result text;
 	sub_rec record;
+	already_added text := '';
 begin
 	for rec in
 		select * from prereqs
 		where code similar to '('||replace(definition,',','|')||')'
 	loop
+		if (rec.subjcode similar to already_added) then
+			continue;
+		end if;
 		result := rec.subjcode;
 		return next result;
+		already_added := already_added||rec.subjcode||'|';
 		for sub_rec in
 			select * from code_members
 			where ao_group = rec.aog_id
 		loop
+			if (sub_rec.code similar to already_added) then
+				continue;
+			end if;
 			result := sub_rec.code;
 			return next result;
+			already_added := already_added||sub_rec.code||'|';
 		end loop;
 	end loop;
+	return;
 end;
 $$ language plpgsql;
 
