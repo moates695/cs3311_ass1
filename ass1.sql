@@ -508,17 +508,6 @@ begin
 		result := rec.subjcode;
 		return next result;
 		already_added := already_added||rec.subjcode||'|';
-		for sub_rec in
-			select * from code_members
-			where ao_group = rec.aog_id
-		loop
-			if (sub_rec.code similar to already_added) then
-				continue;
-			end if;
-			result := sub_rec.code;
-			return next result;
-			already_added := already_added||sub_rec.code||'|';
-		end loop;
 	end loop;
 	return;
 end;
