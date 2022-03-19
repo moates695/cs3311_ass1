@@ -484,11 +484,6 @@ create or replace view prereqs(aog_id, subjcode, definition) as
 	inner join subjects as s on sp.subject = s.id
 ;
 
-create or replace view code_members(code, ao_group) as
-	select s.code, sgm.ao_group from subject_group_members as sgm
-	inner join subjects as s on sgm.subject = s.id
-;
-
 create or replace function
 	Q10(code text) returns setof text
 as $$
@@ -496,11 +491,23 @@ declare
 	rec record;
 	result text;
 	sub_rec record;
+	pattern text := '';
+	single text := '';
+	i integer;
+	num_patterns integer := 0;
 	already_added text := '';
 begin
 	for rec in
 		select * from prereqs
-		where code similar to '('||replace(definition,',','|')||')'
+		where code similar to '('||replace(
+				           replace(
+					   replace(
+					   replace(
+					   replace(definition,',','|'),
+						   '[',' '),
+						   ']',' '),
+						   '(',' '),
+						   ')',' ')||')'
 	loop
 		if (rec.subjcode similar to already_added) then
 			continue;
